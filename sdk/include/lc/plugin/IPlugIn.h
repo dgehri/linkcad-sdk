@@ -9,8 +9,7 @@
 
 #include "IPlugInContext.h"
 
-namespace lc {
-namespace plugin {
+namespace lc::plugin {
 
 struct IPlugIn;
 
@@ -60,5 +59,4 @@ inline IPlugIn::~IPlugIn() = default;
             return 0;                                                             \
     }
 
-}  // namespace plugin
-}  // namespace lc
+}  // namespace lc::plugin

@@ -11,8 +11,7 @@
 #include "IFormat.h"
 #include "IWriter.h"
 
-namespace lc {
-namespace plugin {
+namespace lc::plugin {
 
 //------------------------------------------------------------------------------
 // Interface for IWriter factories
@@ -33,5 +32,4 @@ struct IWriterPlugIn
 
 inline IWriterPlugIn::~IWriterPlugIn() = default;
 
-}  // namespace plugin
-}  // namespace lc
+}  // namespace lc::plugin

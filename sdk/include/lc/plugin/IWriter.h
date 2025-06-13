@@ -11,8 +11,7 @@
 #include <lc/db/db_fwd.h>
 #include <filesystem>
 
-namespace lc {
-namespace plugin {
+namespace lc::plugin {
 
 //------------------------------------------------------------------------------
 // Interface for format writers
@@ -62,5 +61,4 @@ struct IWriter
 
 inline IWriter::~IWriter() = default;
 
-}  // namespace plugin
-}  // namespace lc
+}  // namespace lc::plugin

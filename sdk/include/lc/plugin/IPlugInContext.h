@@ -9,8 +9,7 @@
 
 #include "IFormatRegistry.h"
 
-namespace lc {
-namespace plugin {
+namespace lc::plugin {
 
 struct IPlugInContext
 {
@@ -22,5 +21,4 @@ struct IPlugInContext
 
 inline IPlugInContext::~IPlugInContext() = default;
 
-}  // namespace plugin
-}  // namespace lc
+}  // namespace lc::plugin

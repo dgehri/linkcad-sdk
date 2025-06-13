@@ -15,8 +15,7 @@ namespace FX {
 class FXComposite;
 }
 
-namespace lc {
-namespace plugin {
+namespace lc::plugin {
 
 struct IReaderPlugIn;
 struct IWriterPlugIn;
@@ -53,5 +52,4 @@ struct IFormatRegistry
 
 inline IFormatRegistry::~IFormatRegistry() = default;
 
-}  // namespace plugin
-}  // namespace lc
+}  // namespace lc::plugin

@@ -9,8 +9,7 @@
 
 #include "IWriter.h"
 
-namespace lc {
-namespace plugin {
+namespace lc::plugin {
 
 //! Default implementation of IWriter interface
 class IWriterImpl : public IWriter
@@ -44,5 +43,4 @@ public:
     void destroy() override { delete this; }
 };
 
-}  // namespace plugin
-}  // namespace lc
+}  // namespace lc::plugin

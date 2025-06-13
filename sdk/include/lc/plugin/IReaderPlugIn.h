@@ -11,8 +11,7 @@
 #include "IFormat.h"
 #include "IReader.h"
 
-namespace lc {
-namespace plugin {
+namespace lc::plugin {
 
 //------------------------------------------------------------------------------
 // Interface for IReader factories
@@ -33,5 +32,4 @@ struct IReaderPlugIn
 
 inline IReaderPlugIn::~IReaderPlugIn() = default;
 
-}  // namespace plugin
-}  // namespace lc
+}  // namespace lc::plugin

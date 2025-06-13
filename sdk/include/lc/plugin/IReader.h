@@ -11,8 +11,7 @@
 #include <filesystem>
 #include <lc/db/db_fwd.h>
 
-namespace lc {
-namespace plugin {
+namespace lc::plugin {
 
 enum class Phase
 {
@@ -47,5 +46,4 @@ struct IReader
     virtual ~IReader() = default;
 };
 
-}  // namespace plugin
-}  // namespace lc
+}  // namespace lc::plugin

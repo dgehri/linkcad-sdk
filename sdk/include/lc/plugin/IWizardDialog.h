@@ -7,8 +7,7 @@
 //------------------------------------------------------------------------------
 #pragma once
 
-namespace lc {
-namespace plugin {
+namespace lc::plugin {
 
 //------------------------------------------------------------------------------
 // Interface for Wizard dialogs
@@ -29,5 +28,4 @@ struct IWizardDialog
 
 inline IWizardDialog::~IWizardDialog() = default;
 
-}  // namespace plugin
-}  // namespace lc
+}  // namespace lc::plugin
