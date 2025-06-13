@@ -1,0 +1,10 @@
+{
+  "name": "linkcad-examples",
+  "version": "1.0.0",
+  "dependencies": [
+    "boost-algorithm",
+    "boost-multiprecision",
+    "boost-format",
+    "boost-filesystem"
+  ]
+}
