@@ -8,7 +8,6 @@
 #include "TlcWriter.h"
 #include <lc/db/db.h>
 #include <lc/env/IEventLog.h>
-#include <lc/util/string_conv.h>
 #include <fstream>
 #include <string>
 #include <filesystem>

@@ -12,9 +12,7 @@
 #include <fstream>
 #include <istream>
 #include <lc/lcunits.h>
-#include <lc/util/cntstream.h>
 #include <lc/util/lcmath.h>
-#include <lc/util/string_conv.h>
 
 namespace lc::format::tlcin {
 
@@ -49,27 +47,20 @@ void TlcReader::parseCell(const fs::path& filePath, const fs::path& parentPath)
     {
         double scaling = 1.0;
 
-        auto fileSize = fs::file_size(filePath);
         std::ifstream file(filePath.string(), std::ios_base::in);
 
-        // set up counting stream buffer
-        util::cntstreambuf cntstreambuf(file.rdbuf());
-        std::istream is(&cntstreambuf);
-
         // parse file
-        while (is)
+        while (file)
         {
-            ctrl_->setProgress(static_cast<int>(cntstreambuf.filepos() * 100 / fileSize));
-
             // read next record
-            if (is.get() != '=')
+            if (file.get() != '=')
             {
-                is.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+                file.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
                 continue;
             }
 
             char record;
-            is >> record;
+            file >> record;
 
             switch (record)
             {
@@ -77,7 +68,7 @@ void TlcReader::parseCell(const fs::path& filePath, const fs::path& parentPath)
             {
                 // Number of layer items<nl>
                 int layers;
-                is >> layers >> std::ws;
+                file >> layers >> std::ws;
 
                 for (int i = 0; i < layers; ++i)
                 {
@@ -86,7 +77,7 @@ void TlcReader::parseCell(const fs::path& filePath, const fs::path& parentPath)
                     std::string layerName;
                     int layer;
 
-                    is >> layerName >> layer >> std::ws;
+                    file >> layerName >> layer >> std::ws;
                     ctrl_->selectLayer(layer);
                     // TODO: TLC has both, layer names & layer numbers
                     //       => store both
@@ -99,21 +90,21 @@ void TlcReader::parseCell(const fs::path& filePath, const fs::path& parentPath)
             {
                 // Name of Cell (Windows file name)<nl>
                 std::string cellName;
-                is >> cellName >> std::ws;
+                file >> cellName >> std::ws;
 
                 // Version of LASI (string)<nl>
-                is.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+                file.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 
                 // Version of TLC (string)<nl>
-                is.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+                file.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 
                 // Basic Units per Physical Unit<nl>
                 double units;
-                is >> units >> std::ws;
+                file >> units >> std::ws;
 
                 // Name of Physical Unit (string)<nl>
                 std::string unitsName;
-                is >> unitsName >> std::ws;
+                file >> unitsName >> std::ws;
                 if (unitsName == "nm")
                 {
                     scaling = ONE_NM / units;
@@ -135,10 +126,10 @@ void TlcReader::parseCell(const fs::path& filePath, const fs::path& parentPath)
                     scaling = ONE_MICRON / units;
                 }
 
-                is.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-                is.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-                is.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-                is.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+                file.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+                file.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+                file.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+                file.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
             }
             break;
 
@@ -146,7 +137,7 @@ void TlcReader::parseCell(const fs::path& filePath, const fs::path& parentPath)
             {
                 // Name of Lesser Cell<nl>
                 std::string cellName;
-                is >> cellName >> std::ws;
+                file >> cellName >> std::ws;
 
                 ctrl_->createRef(to_upper_copy(cellName));
 
@@ -163,7 +154,7 @@ void TlcReader::parseCell(const fs::path& filePath, const fs::path& parentPath)
                 // (presently 0)<nl>
                 unsigned long orientFlags, reserved;
                 Point pos;
-                is >> orientFlags >> pos.x >> pos.y >> reserved >> std::ws;
+                file >> orientFlags >> pos.x >> pos.y >> reserved >> std::ws;
 
                 if (orientFlags & 0x04)
                 {
@@ -187,7 +178,8 @@ void TlcReader::parseCell(const fs::path& filePath, const fs::path& parentPath)
                 // Side<sp>Y of Top Side<nl>
                 int layer;
                 Point bottomLeft, topRight;
-                is >> layer >> bottomLeft.x >> bottomLeft.y >> topRight.x >> topRight.y >> std::ws;
+                file >> layer >> bottomLeft.x >> bottomLeft.y >> topRight.x >> topRight.y >>
+                    std::ws;
                 ctrl_->selectLayer(layer);
                 ctrl_->createRectangle(scale(bottomLeft, scaling), scale(topRight, scaling));
             }
@@ -200,13 +192,13 @@ void TlcReader::parseCell(const fs::path& filePath, const fs::path& parentPath)
 
                 // Layer of Path/Poly<sp>Width (in basic units)<sp>No. of Vertices in
                 // path/poly<nl>
-                is >> layer >> width >> vertexCount >> std::ws;
+                file >> layer >> width >> vertexCount >> std::ws;
                 ctrl_->selectLayer(layer);
                 PointArray vertices;
                 for (int i = 0; i < vertexCount; ++i)
                 {
                     Point pt;
-                    if (!(is >> pt.x >> pt.y))
+                    if (!(file >> pt.x >> pt.y))
                         break;
 
                     vertices.append(scale(pt, scaling));
@@ -222,7 +214,7 @@ void TlcReader::parseCell(const fs::path& filePath, const fs::path& parentPath)
                 {
                     ctrl_->createPolygon(vertices);
                 }
-                is >> std::ws;
+                file >> std::ws;
             }
             break;
 
@@ -234,16 +226,16 @@ void TlcReader::parseCell(const fs::path& filePath, const fs::path& parentPath)
 
                 // Layer of Text<sp>Text Size<sp>No. of Vertices used by text (includes
                 // ref point)<sp>Orientation (same as cells)<nl>
-                is >> layer >> height >> vertexCount >> orientFlags >> std::ws;
+                file >> layer >> height >> vertexCount >> orientFlags >> std::ws;
                 ctrl_->selectLayer(layer);
 
                 // X of Ref Point<sp>Y of Ref Point<nl>
                 Point pt;
-                is >> pt.x >> pt.y >> std::ws;
+                file >> pt.x >> pt.y >> std::ws;
 
                 // Text string (u/l case, up to 64 characters)<nl>
                 std::string str;
-                getline(is, str);
+                getline(file, str);
 
                 ctrl_->createText();
                 ctrl_->setTextPosition(scale(pt, scaling));
