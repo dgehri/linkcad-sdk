@@ -8,79 +8,57 @@
 #include "TlcWriter.h"
 #include <lc/lic/License.h>
 #include <lc/plugin/IWriterPlugIn.h>
+#include <lc/plugin/IFormat.h>
 
 namespace lc::format::tlcout {
 
 //------------------------------------------------------------------------------
-// IPlugIn implementation
+// TLC Writer Plugin
 //------------------------------------------------------------------------------
 class TlcWriterPlugIn : public lc::plugin::IPlugIn
 {
 public:
-    // Load plug-in
-    virtual bool load(const plugin::IPlugInContext* context, void* /* module */);
+    // Load the plugin
+    bool load(const plugin::IPlugInContext* context, void* /* module */) override
+    {
+        auto registry = context->formatRegistry();
+        registry->registerWriterPlugIn(&writer_, "LASI TLC", "*.tlc", lic::License::TlcLicense);
+        return true;
+    }
 
-    // Unload plug-in
-    virtual bool unload();
+    // Unload the plugin
+    bool unload() override { return true; }
 
 private:
+    // Writer factory implementation
     struct Writer : lc::plugin::IWriterPlugIn
     {
-        // Describe the file format
-        virtual void describeFormat(plugin::IFormat* format) const;
+        // Describe the TLC file format capabilities
+        void describeFormat(plugin::IFormat* format) const override
+        {
+            // Valid characters for TLC cell names
+            static constexpr const char* VALID_CHARS =
+                "!#$%&-0123456789@ABCDEFGHIJKLMNOPQRSTUVWXYZ[]^_{}~";
 
-        // Configure file format
-        virtual void configureFormat() const;
+            format->setAttributes(plugin::IFormat::LayerNumbers | plugin::IFormat::CellFileNames);
+            format->setLayerNumberRange(1, 256);
+            format->setCellNameLength(32);
+            format->setValidCellChars(VALID_CHARS);
+            format->setFileNameExtension("tlc");
+        }
 
-        // Create writer instance
-        virtual lc::plugin::IWriter* createInstance() const;
+        // Configure format settings (nothing to configure for TLC)
+        void configureFormat() const override {}
+
+        // Create a new writer instance
+        plugin::IWriter* createInstance() const override { return new TlcWriter; }
     };
 
     Writer writer_;
 };
 
 //------------------------------------------------------------------------------
-bool TlcWriterPlugIn::load(const plugin::IPlugInContext* context, void* /*module*/)
-{
-    auto registry = context->formatRegistry();
-    registry->registerWriterPlugIn(&writer_, "LASI TLC", "*.tlc", lic::License::TlcLicense);
-    return true;
-}
-
-//------------------------------------------------------------------------------
-bool TlcWriterPlugIn::unload()
-{
-    return true;
-}
-
-//------------------------------------------------------------------------------
-void TlcWriterPlugIn::Writer::describeFormat(plugin::IFormat* format) const
-{
-    using namespace plugin;
-
-    format->setAttributes(IFormat::NoAttribute);
-
-    // set of valid TLC characters
-    static const char* lasiChars = "!#$%&-0123456789@ABCDEFGHIJKLMNOPQRSTUVWXYZ[]^_{}~";
-
-    format->setAttributes(IFormat::LayerNumbers | IFormat::CellFileNames);
-    format->setLayerNumberRange(1, 256);
-    format->setCellNameLength(32);
-    format->setValidCellChars(lasiChars);
-    format->setFileNameExtension("tlc");
-}
-
-//------------------------------------------------------------------------------
-void TlcWriterPlugIn::Writer::configureFormat() const {}
-
-//------------------------------------------------------------------------------
-plugin::IWriter* TlcWriterPlugIn::Writer::createInstance() const
-{
-    return new TlcWriter;
-}
-
-//------------------------------------------------------------------------------
-// Declare plug-in
+// Plugin registration
 //------------------------------------------------------------------------------
 DECLARE_PLUGIN(TlcWriterPlugIn);
 

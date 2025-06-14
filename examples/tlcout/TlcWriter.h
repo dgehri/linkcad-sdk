@@ -19,46 +19,46 @@ namespace lc::format::tlcout {
 class TlcWriter final : public plugin::IWriterImpl
 {
 public:
-    // Constructor
+    // Constructor/Destructor
     TlcWriter() = default;
     ~TlcWriter() = default;
 
-    //! Prevent copying
+    // Prevent copying and moving
     TlcWriter(const TlcWriter&) = delete;
     TlcWriter& operator=(const TlcWriter&) = delete;
     TlcWriter(TlcWriter&&) = delete;
     TlcWriter& operator=(TlcWriter&&) = delete;
 
 protected:
-    // Convert file
+    // Main entry point - write the drawing to a file
     bool writeFile(const std::filesystem::path& filePath,
                    plugin::IWriterController* controller) override;
 
-    // Render polygon
+    // Write a polygon entity
     bool writeEntity(const db::Polygon* poly, geom::FillRule fillRule) override;
 
-    // Render polyline
+    // Write a polyline entity
     bool writeEntity(const db::Polyline* pline) override;
 
-    // Render reference
+    // Write a reference entity
     bool writeEntity(const db::Ref* ref, const db::Layer* layer) override;
 
 private:
-    // Write cell
+    // Write a complete cell
     bool writeCell(const db::Cell* cell);
 
-    // Scale coordinate
+    // Scale a point from internal units to TLC units
     [[nodiscard]] Point scale(const Point& pt) const;
 
-    // Scale width
+    // Scale a distance from internal units to TLC units
     [[nodiscard]] int scale(dist d) const;
 
 private:
-    plugin::IWriterController* ctrl_{};
-    std::ofstream os_;
-    int scaling_{1};
-    conv::Properties::ExportCellName* cellName_{};
-    conv::Properties::ExportLayerNumber* layerNumber_{};
+    plugin::IWriterController* ctrl_ = nullptr;  // writer controller interface
+    std::ofstream os_;  // output file stream
+    int scaling_ = 1;  // scaling factor
+    conv::Properties::ExportCellName* cellName_ = nullptr;  // cell naming property
+    conv::Properties::ExportLayerNumber* layerNumber_ = nullptr;  // layer numbering property
 };
 
 }  // namespace lc::format::tlcout

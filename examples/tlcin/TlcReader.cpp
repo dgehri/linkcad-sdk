@@ -10,15 +10,14 @@
 #include <filesystem>
 #include <format>
 #include <fstream>
-#include <istream>
 #include <lc/lcunits.h>
 #include <lc/util/lcmath.h>
+#include <string_view>
 
 namespace lc::format::tlcin {
 
 using lc::geom::Angle;
 using lc::util::round;
-using namespace boost::algorithm;
 namespace fs = std::filesystem;
 
 //------------------------------------------------------------------------------
@@ -29,12 +28,11 @@ bool TlcReader::parseFile(const std::filesystem::path& filePath,
                           int /*fileCount*/)
 {
     ctrl_ = ctrl;
-
     cellNames_.clear();
 
-    // add a global cell and parse the file
+    // Create a top-level cell and parse the file
     ctrl_->openCell(filePath.string(), true);
-    parseCell(filePath, fs::path());
+    parseCell(filePath, fs::path{});
     ctrl_->closeCell();
 
     return true;
@@ -45,122 +43,117 @@ void TlcReader::parseCell(const fs::path& filePath, const fs::path& parentPath)
 {
     try
     {
+        std::ifstream file(filePath);
+        if (!file)
+        {
+            throw fs::filesystem_error("Cannot open file", filePath, std::error_code{});
+        }
+
         double scaling = 1.0;
 
-        std::ifstream file(filePath.string(), std::ios_base::in);
-
-        // parse file
+        // Parse TLC records
         while (file)
         {
-            // read next record
+            // TLC records start with '='
             if (file.get() != '=')
             {
                 file.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
                 continue;
             }
 
-            char record;
-            file >> record;
+            char recordType;
+            file >> recordType;
 
-            switch (record)
+            switch (recordType)
             {
             case 'L':  // Layer list
             {
-                // Number of layer items<nl>
-                int layers;
-                file >> layers >> std::ws;
+                int layerCount;
+                file >> layerCount >> std::ws;
 
-                for (int i = 0; i < layers; ++i)
+                for (int i = 0; i < layerCount; ++i)
                 {
-                    // Layer Name (8 characters max, 4 if CIF format is to be
-                    // used)<sp>Layer Number (1 to 256)<nl>
                     std::string layerName;
-                    int layer;
+                    int layerNumber;
+                    file >> layerName >> layerNumber >> std::ws;
 
-                    file >> layerName >> layer >> std::ws;
-                    ctrl_->selectLayer(layer);
-                    // TODO: TLC has both, layer names & layer numbers
-                    //       => store both
+                    ctrl_->selectLayer(layerNumber);
                     ctrl_->setLayerComment(layerName);
                 }
+                break;
             }
-            break;
 
             case 'H':  // Header Record
             {
-                // Name of Cell (Windows file name)<nl>
                 std::string cellName;
                 file >> cellName >> std::ws;
 
-                // Version of LASI (string)<nl>
+                // Skip LASI version
                 file.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 
-                // Version of TLC (string)<nl>
+                // Skip TLC version
                 file.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
 
-                // Basic Units per Physical Unit<nl>
-                double units;
-                file >> units >> std::ws;
+                // Read units
+                double unitsPerPhysical;
+                file >> unitsPerPhysical >> std::ws;
 
-                // Name of Physical Unit (string)<nl>
-                std::string unitsName;
-                file >> unitsName >> std::ws;
-                if (unitsName == "nm")
-                {
-                    scaling = ONE_NM / units;
-                }
-                else if (unitsName == "um")
-                {
-                    scaling = ONE_MICRON / units;
-                }
-                else if (unitsName == "mm")
-                {
-                    scaling = ONE_MM / units;
-                }
-                else if (unitsName == "cm")
-                {
-                    scaling = ONE_CM / units;
-                }
+                // Read unit name and calculate scaling factor
+                std::string unitName;
+                file >> unitName >> std::ws;
+
+                // Convert to internal units (nanometers)
+                if (unitName == "nm")
+                    scaling = ONE_NM / unitsPerPhysical;
+                else if (unitName == "um")
+                    scaling = ONE_MICRON / unitsPerPhysical;
+                else if (unitName == "mm")
+                    scaling = ONE_MM / unitsPerPhysical;
+                else if (unitName == "cm")
+                    scaling = ONE_CM / unitsPerPhysical;
                 else
+                    scaling = ONE_MICRON / unitsPerPhysical;  // default to microns
+
+                // Skip remaining header lines
+                for (int i = 0; i < 4; ++i)
                 {
-                    scaling = ONE_MICRON / units;
+                    file.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
                 }
-
-                file.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-                file.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-                file.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
-                file.ignore(std::numeric_limits<std::streamsize>::max(), '\n');
+                break;
             }
-            break;
 
-            case 'C':  // Include other cell
+            case 'C':  // Cell reference
             {
-                // Name of Lesser Cell<nl>
                 std::string cellName;
                 file >> cellName >> std::ws;
 
-                ctrl_->createRef(to_upper_copy(cellName));
+                // Convert to uppercase for consistency
+                auto upperCellName = boost::algorithm::to_upper_copy(cellName);
+                ctrl_->createRef(upperCellName);
 
+                // Parse sub-cell if not already included
                 if (!isIncluded(cellName))
                 {
-                    fs::path cellPath(filePath.parent_path() / cellName);
+                    auto cellPath = filePath.parent_path() / cellName;
                     cellPath.replace_extension("TLC");
-                    ctrl_->openCell(to_upper_copy(cellName));
-                    parseCell(cellPath, filePath);  // parse sub-cell
+
+                    ctrl_->openCell(upperCellName);
+                    parseCell(cellPath, filePath);
                     ctrl_->closeCell();
                 }
 
-                // Orientation (see below)<sp>X Position<sp>Y Position<sp>reserved
-                // (presently 0)<nl>
+                // Read transformation
                 unsigned long orientFlags, reserved;
-                Point pos;
-                file >> orientFlags >> pos.x >> pos.y >> reserved >> std::ws;
+                Point position;
+                file >> orientFlags >> position.x >> position.y >> reserved >> std::ws;
 
+                // Apply mirroring
                 if (orientFlags & 0x04)
                 {
                     ctrl_->mirrorRefInY();
                 }
 
+                // Apply rotation
                 switch (orientFlags & 0x03)
                 {
                 case 1: ctrl_->rotateRef(Angle::piHalf); break;
@@ -168,84 +161,86 @@ void TlcReader::parseCell(const fs::path& filePath, const fs::path& parentPath)
                 case 3: ctrl_->rotateRef(Angle::threePiHalf); break;
                 }
 
-                ctrl_->translateRef(scale(pos, scaling));
+                // Apply translation
+                ctrl_->translateRef(scale(position, scaling));
+                break;
             }
-            break;
 
-            case 'B':  // Box
+            case 'B':  // Box (Rectangle)
             {
-                // Layer of Box<sp>X of Left Side<sp>Y of Bottom Side<sp>X of Right
-                // Side<sp>Y of Top Side<nl>
                 int layer;
                 Point bottomLeft, topRight;
                 file >> layer >> bottomLeft.x >> bottomLeft.y >> topRight.x >> topRight.y >>
                     std::ws;
+
                 ctrl_->selectLayer(layer);
                 ctrl_->createRectangle(scale(bottomLeft, scaling), scale(topRight, scaling));
+                break;
             }
-            break;
 
-            case 'P':  // Polygon
+            case 'P':  // Path or Polygon
             {
                 int layer;
                 long width, vertexCount;
-
-                // Layer of Path/Poly<sp>Width (in basic units)<sp>No. of Vertices in
-                // path/poly<nl>
                 file >> layer >> width >> vertexCount >> std::ws;
+
                 ctrl_->selectLayer(layer);
+
+                // Read vertices
                 PointArray vertices;
-                for (int i = 0; i < vertexCount; ++i)
+                for (long i = 0; i < vertexCount; ++i)
                 {
                     Point pt;
                     if (!(file >> pt.x >> pt.y))
                         break;
-
                     vertices.append(scale(pt, scaling));
                 }
 
                 if (width > 0)
                 {
+                    // Create path with width
                     bool closed = (vertices.head() == vertices.tail());
                     ctrl_->createPolyline(round<dist>(width * scaling), vertices, closed,
                                           db::EndCap::SquareFlat);
                 }
                 else
                 {
+                    // Create polygon (width = 0)
                     ctrl_->createPolygon(vertices);
                 }
                 file >> std::ws;
+                break;
             }
-            break;
 
             case 'T':  // Text
             {
                 int layer;
                 long height, vertexCount;
                 unsigned long orientFlags;
-
-                // Layer of Text<sp>Text Size<sp>No. of Vertices used by text (includes
-                // ref point)<sp>Orientation (same as cells)<nl>
                 file >> layer >> height >> vertexCount >> orientFlags >> std::ws;
+
                 ctrl_->selectLayer(layer);
 
-                // X of Ref Point<sp>Y of Ref Point<nl>
-                Point pt;
-                file >> pt.x >> pt.y >> std::ws;
+                // Read reference point
+                Point position;
+                file >> position.x >> position.y >> std::ws;
 
-                // Text string (u/l case, up to 64 characters)<nl>
-                std::string str;
-                getline(file, str);
+                // Read text string
+                std::string text;
+                std::getline(file, text);
 
+                // Create and configure text
                 ctrl_->createText();
-                ctrl_->setTextPosition(scale(pt, scaling));
+                ctrl_->setTextPosition(scale(position, scaling));
                 ctrl_->setTextHeight(height * scaling);
 
+                // Apply mirroring
                 if (orientFlags & 0x04)
                 {
                     ctrl_->setTextMirroredInY();
                 }
 
+                // Apply rotation
                 switch (orientFlags & 0x03)
                 {
                 case 1: ctrl_->setTextRotation(Angle::piHalf); break;
@@ -253,16 +248,19 @@ void TlcReader::parseCell(const fs::path& filePath, const fs::path& parentPath)
                 case 3: ctrl_->setTextRotation(Angle::threePiHalf); break;
                 }
 
-                ctrl_->setUnformattedText(str);
+                ctrl_->setUnformattedText(text);
+                break;
             }
-            break;
 
-            default: ASSERT(false); break;
+            default:
+                ASSERT(false);  // Unknown record type
+                break;
             }
         }
     }
-    catch (fs::filesystem_error&)
+    catch (const fs::filesystem_error&)
     {
+        // Log error with context
         if (parentPath.empty())
         {
             ctrl_->log()->log(lc::env::Severity::Error,
@@ -278,7 +276,7 @@ void TlcReader::parseCell(const fs::path& filePath, const fs::path& parentPath)
 }
 
 //------------------------------------------------------------------------------
-Point TlcReader::scale(const Point& pt, double scaling)
+Point TlcReader::scale(const Point& pt, double scaling) const
 {
     return geom::round<Point>(static_cast<geom::Point2d>(pt) * scaling);
 }
@@ -286,7 +284,8 @@ Point TlcReader::scale(const Point& pt, double scaling)
 //------------------------------------------------------------------------------
 bool TlcReader::isIncluded(const std::string& name)
 {
-    // try inserting, return false if insert failed because name already in set
+    // Try to insert the name. If it already exists, insert returns false
+    // for the second element of the pair, indicating it was already included
     return !cellNames_.insert(name).second;
 }
 
