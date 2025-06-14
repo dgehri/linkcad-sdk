@@ -24,3 +24,4 @@ set(CMAKE_ARCHIVE_OUTPUT_DIRECTORY ${CMAKE_BINARY_DIR}/lib)
 # Add subdirectories for each example
 add_subdirectory(tlcin)
 add_subdirectory(tlcout)
+add_subdirectory(skeleton)

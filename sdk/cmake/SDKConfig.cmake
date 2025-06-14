@@ -44,15 +44,79 @@ if(NOT EXISTS "${SDK_LIB_DIR}")
     message(FATAL_ERROR "SDK library directory not found at ${SDK_LIB_DIR}")
 endif()
 
-# Function to link SDK libraries to a target
-function(target_link_sdk_libraries target)
+# Find required packages
+find_package(Boost REQUIRED)
+
+# Function to configure a LinkCAD plugin target
+function(use_linkcad_sdk target)
+    # Add include directories
+    target_include_directories(${target} PRIVATE
+        ${SDK_INCLUDE_DIR}
+        ${Boost_INCLUDE_DIRS}
+    )
+    
+    # Link SDK libraries
     if(MSVC)
         target_link_libraries(${target} PRIVATE
             ${SDK_LIB_DIR}/$<IF:$<CONFIG:Debug>,${SDK_DEBUG_SUBDIR},${SDK_RELEASE_SUBDIR}>/${SDK_LIB_NAME}
+            ${Boost_LIBRARIES}
         )
     else()
         target_link_libraries(${target} PRIVATE
             ${SDK_LIB_DIR}/${SDK_LIB_NAME}
+            ${Boost_LIBRARIES}
+        )
+    endif()
+    
+    # Platform-specific settings
+    if(MSVC)
+        # Add MSVC specific compile options
+        target_compile_options(${target} PRIVATE
+            /W4 # Warning level 4
+            $<$<CONFIG:Debug>:/Od /RTC1> # Debug optimizations
+            $<$<CONFIG:Release>:/O2> # Release optimizations
+        )
+    elseif(CMAKE_CXX_COMPILER_ID MATCHES "GNU|Clang")
+        # Add GCC/Clang specific compile options
+        target_compile_options(${target} PRIVATE
+            -Wall -Wextra -Wpedantic
+            $<$<CONFIG:Debug>:-g -O0>
+            $<$<CONFIG:Release>:-O3>
+        )
+    endif()
+
+    # Common compile definitions
+    target_compile_definitions(${target} PRIVATE
+        $<$<CONFIG:Debug>:DEBUG _DEBUG>
+        $<$<CONFIG:Release>:NDEBUG>
+    )
+
+    # Windows specific settings
+    if(WIN32)
+        target_compile_definitions(${target} PRIVATE
+            _WINDOWS
+            _USRDLL
+            NOMINMAX
+            _CRT_SECURE_NO_WARNINGS
+        )
+
+        # Set Windows-specific properties
+        set_target_properties(${target} PROPERTIES
+            PREFIX ""
+            WINDOWS_EXPORT_ALL_SYMBOLS OFF
+        )
+    endif()
+
+    # Set RPATH for Linux/macOS
+    if(UNIX AND NOT APPLE)
+        set_target_properties(${target} PROPERTIES
+            INSTALL_RPATH "$ORIGIN"
+            BUILD_WITH_INSTALL_RPATH TRUE
+        )
+    elseif(APPLE)
+        set_target_properties(${target} PROPERTIES
+            INSTALL_RPATH "@loader_path"
+            BUILD_WITH_INSTALL_RPATH TRUE
         )
     endif()
 endfunction()
@@ -66,3 +130,4 @@ message(STATUS "  Include: ${SDK_INCLUDE_DIR}")
 message(STATUS "  Library: ${SDK_LIB_DIR}")
 message(STATUS "  Platform: ${CMAKE_SYSTEM_NAME}")
 message(STATUS "  Architecture: ${SDK_ARCH_DIR}")
+message(STATUS "  Boost: ${Boost_INCLUDE_DIRS}")

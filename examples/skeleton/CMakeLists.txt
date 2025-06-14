@@ -1,13 +1,13 @@
 cmake_minimum_required(VERSION 3.20)
 
 # Define the plugin name
-set(PLUGIN_NAME tlcin)
+set(PLUGIN_NAME skeleton)
 
 # Create the plugin library
 add_library(${PLUGIN_NAME} SHARED
-    TlcReader.cpp
-    TlcReader.h
-    TlcReaderPlugIn.cpp
+    SkeletonReader.cpp
+    SkeletonReader.h
+    SkeletonReaderPlugIn.cpp
 )
 
 # Set properties
@@ -22,7 +22,7 @@ use_linkcad_sdk(${PLUGIN_NAME})
 
 # Plugin-specific compile definitions
 target_compile_definitions(${PLUGIN_NAME} PRIVATE
-    TLCIN_EXPORTS
+    SKELETON_EXPORTS
 )
 
 # Install rules
